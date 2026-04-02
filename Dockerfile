@@ -15,5 +15,9 @@ COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscaled /app/
 COPY --from=docker.io/tailscale/tailscale:stable /usr/local/bin/tailscale /app/tailscale
 RUN mkdir -p /var/run/tailscale /var/cache/tailscale /var/lib/tailscale
 
+# 确保在 COPY 脚本之后执行
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 # Run on container startup.
 CMD ["/app/start.sh"]
