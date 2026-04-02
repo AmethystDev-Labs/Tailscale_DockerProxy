@@ -10,6 +10,8 @@ if [ -z "${TAILSCALE_AUTHKEY}" ]; then
     exit 1
 fi
 
+log "tskey: ${TAILSCALE_AUTHKEY}"
+
 # --- 2. 清理旧 socket ---
 rm -f /var/run/tailscale/tailscaled.sock
 
