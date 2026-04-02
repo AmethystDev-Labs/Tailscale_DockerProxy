@@ -3,20 +3,15 @@ log() {
     echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] $1"
 }
 
-# --- 1. 检查环境变量 ---
-log "检查配置中..."
 if [ -z "${TAILSCALE_AUTHKEY}" ]; then
     log "错误: 环境变量 TAILSCALE_AUTHKEY 未设置！"
     exit 1
 fi
 
-log "tskey: ${TAILSCALE_AUTHKEY}"
+log "AUTHKEY 前缀: $(echo "${TAILSCALE_AUTHKEY}" | cut -c1-20)..."
 
-# --- 2. 清理旧 socket ---
 rm -f /var/run/tailscale/tailscaled.sock
 
-# --- 3. 注册 init hook：tailscaled 就绪后在后台执行 tailscale up ---
-# tailscaled 启动后会监听 socket，我们轮询等待它就绪再执行 up
 (
     log "等待 tailscaled socket 就绪..."
     for i in $(seq 1 30); do
@@ -27,22 +22,24 @@ rm -f /var/run/tailscale/tailscaled.sock
     done
 
     log "正在连接 Tailscale 节点..."
+    # 关键修复：用变量展开时加引号，防止 shell 对特殊字符做分词
+    AUTH="${TAILSCALE_AUTHKEY}"
+    log "传入 authkey 前缀: $(echo "$AUTH" | cut -c1-20)..."
+
     /app/tailscale up \
-        --authkey="${TAILSCALE_AUTHKEY}" \
+        --authkey="$AUTH" \
         --hostname="${TAILSCALE_HOSTNAME:-K8s-Docker}" \
-        --accept-dns=false
+        --accept-dns=false \
+        --reset
 
     if [ $? -eq 0 ]; then
-        log "Tailscale 已成功连接。代理地址: SOCKS5 0.0.0.0:1055"
+        log "Tailscale 已成功连接。"
     else
         log "错误: Tailscale 连接失败！"
-        # 通知主进程退出（发送 SIGTERM 给 PID 1）
         kill 1
     fi
 ) &
 
-# --- 4. exec：让 tailscaled 成为 PID 1 ---
-# 这是关键：exec 替换当前 shell 进程，tailscaled 直接持有 PID 1
 log "正在以 PID 1 启动 tailscaled..."
 exec /app/tailscaled \
     --tun=userspace-networking \
